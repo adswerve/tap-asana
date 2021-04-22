@@ -70,7 +70,7 @@ class Tasks(Stream):
         workspaces = self.call_api("workspaces")
         all_projects_gid = []
         for workspace in workspaces:
-            projects = self.call_api("projects", workspace=workspace["gid"])
+            projects = self.call_api("projects", workspace=workspace["gid"], archived=False)
             for project in projects:
                 all_projects_gid.append(project["gid"])
 

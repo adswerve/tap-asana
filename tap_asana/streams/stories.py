@@ -73,50 +73,59 @@ class Stories(Stream):
         workspaces = self.call_api("workspaces")
         all_projects_gid = []
         for workspace in workspaces:
-            projects = self.call_api("projects", workspace=workspace["gid"])
+            projects = self.call_api("projects",
+                                     workspace=workspace["gid"])  # only getting updates for non archived projects *****ADD BACK IN
             for project in projects:
+                if int(project['gid']) < 1100634302647302:  # remove
+                    continue
                 all_projects_gid.append(project["gid"])
+
+        LOGGER.info("Num projects to finish backfill:")  # remove
+        LOGGER.info(len(all_projects_gid))  # remove
 
         # For every Project ID, get all tasks and subtasks, yield their stories
         for p_gid in all_projects_gid:
+
             LOGGER.info(p_gid)
             tasks = self.call_api("tasks", project=p_gid, opt_fields=opt_fields)
 
-            task_list = []
+            task_dict = {}
             for task in tasks:
                 self.timer_check()  # check if need to refresh token
-                task_list.append(task["gid"])
 
-                # Check if task stories have already been pulled
-                if task["gid"] not in self.task_history.keys():
+                if task["gid"] in self.task_history.keys():  # if task has been check already
+                    continue
+                self.task_history[task["gid"]] = True
+                task_dict[task["gid"]] = task["num_subtasks"]
+
+                if self.is_bookmark_old(task["modified_at"]):  # if task has been modified, check for stories
                     for story in Context.asana.client.stories.get_stories_for_task(task_gid=task["gid"],
                                                                                    opt_fields=opt_fields):
                         session_bookmark = self.get_updated_session_bookmark(session_bookmark,
                                                                              story[self.replication_key])
                         if self.is_bookmark_old(story[self.replication_key]):
                             yield story
-                    self.task_history[task["gid"]] = True
 
             all_subtasks_ids = []
-
             # If a project has tasks, look for subtasks
-            if len(task_list) > 0:
-                self.get_all_tasks(task_list, all_subtasks_ids)
+            if len(task_dict) > 0:
+                self.get_all_tasks(task_dict, all_subtasks_ids)
 
             # If we found any subtasks for the given tasks, yield their stories
             if len(all_subtasks_ids) > 0:
-                self.timer_check()
                 for task_id in all_subtasks_ids:
+                    self.timer_check()
                     try:
                         subtask = Context.asana.client.tasks.find_by_id(task_id)
                         if subtask["gid"] not in self.task_history.keys():
-                          for story in Context.asana.client.stories.get_stories_for_task(task_gid=subtask["gid"],
-                                                                                         opt_fields=opt_fields):
-                            session_bookmark = self.get_updated_session_bookmark(session_bookmark,
-                                                                                 story[self.replication_key])
-                            if self.is_bookmark_old(story[self.replication_key]):
-                              yield story
-                          self.task_history[task["gid"]] = True
+                            self.task_history[task["gid"]] = True
+                            if self.is_bookmark_old(subtask["modified_at"]):
+                                for story in Context.asana.client.stories.get_stories_for_task(task_gid=subtask["gid"],
+                                                                                               opt_fields=opt_fields):
+                                    session_bookmark = self.get_updated_session_bookmark(session_bookmark,
+                                                                                         story[self.replication_key])
+                                    if self.is_bookmark_old(story[self.replication_key]):
+                                        yield story
 
                     except Exception as e:
                         LOGGER.info("Skipping a subtask's stories, exception occurred")
@@ -125,17 +134,21 @@ class Stories(Stream):
 
         self.update_bookmark(session_bookmark)
 
-    def get_all_tasks(self, task_list, all_subtasks_ids):
+    def get_all_tasks(self, task_dict, all_subtasks_ids):
+        opt_fields = ",".join(self.fields)
         self.timer_check()
-        for id in task_list:
-            temp_subtasks = []
-            subtasks = Context.asana.client.tasks.subtasks(id)
+        for gid in task_dict.keys():
+            # check if the task has subtasks
+            if int(task_dict[gid]) == 0:
+                continue
+            temp_subtasks = {}
+            subtasks = Context.asana.client.tasks.subtasks(gid, opt_fields=opt_fields)
             for subtask in subtasks:
                 all_subtasks_ids.append(subtask["gid"])  # add subtask id to the full id list
-                temp_subtasks.append(subtask["gid"])  # add subtask id to a list for this specific task
+                temp_subtasks[subtask["gid"]] = subtask["num_subtasks"]  # add id mapped to num_subtasks into dict
 
-            if len(
-                    temp_subtasks) > 0:  # If there are any subtasks for this given task, call the function recursively and check for nested subtasks
+            # If there are any subtasks for this given task, call the function recursively and check for nested subtasks
+            if len(temp_subtasks) > 0:
                 self.get_all_tasks(temp_subtasks, all_subtasks_ids)
 
     def timer_check(self):
