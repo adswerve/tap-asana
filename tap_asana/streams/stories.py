@@ -38,7 +38,6 @@ class Stories(Stream):
         "new_text_value",
         "num_hearts",
         "num_likes",
-        "num_subtasks",
         "old_approval_status",
         "old_dates",
         "old_enum_value",
@@ -55,6 +54,13 @@ class Stories(Stream):
         "target",
         "task"
     ]
+    task_fields = [
+        "gid",
+        "created_at",
+        "modified_at",
+        "num_subtasks"
+
+    ]
     start_time = None
     task_history = {}
 
@@ -65,6 +71,7 @@ class Stories(Stream):
         bookmark = self.get_bookmark()
         session_bookmark = bookmark
         opt_fields = ",".join(self.fields)
+        t_opt_fields = ",".join(self.task_fields)
 
         # Refreshing token at the start of stories
         Context.asana.refresh_access_token()
@@ -88,7 +95,7 @@ class Stories(Stream):
         for p_gid in all_projects_gid:
 
             LOGGER.info(p_gid)
-            tasks = self.call_api("tasks", project=p_gid, opt_fields=opt_fields)
+            tasks = self.call_api("tasks", project=p_gid, opt_fields=t_opt_fields)
 
             task_dict = {}
             for task in tasks:
@@ -136,14 +143,14 @@ class Stories(Stream):
         self.update_bookmark(session_bookmark)
 
     def get_all_tasks(self, task_dict, all_subtasks_ids):
-        opt_fields = ",".join(self.fields)
+        t_opt_fields = ",".join(self.task_fields)
         self.timer_check()
         for gid in task_dict.keys():
             # check if the task has subtasks
             if int(task_dict[gid]) == 0:
                 continue
             temp_subtasks = {}
-            subtasks = Context.asana.client.tasks.subtasks(gid, opt_fields=opt_fields)
+            subtasks = Context.asana.client.tasks.subtasks(gid, opt_fields=t_opt_fields)
             for subtask in subtasks:
                 all_subtasks_ids.append(subtask["gid"])  # add subtask id to the full id list
                 temp_subtasks[subtask["gid"]] = subtask["num_subtasks"]  # add id mapped to num_subtasks into dict
