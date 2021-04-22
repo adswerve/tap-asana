@@ -38,6 +38,7 @@ class Stories(Stream):
         "new_text_value",
         "num_hearts",
         "num_likes",
+        "num_subtasks",
         "old_approval_status",
         "old_dates",
         "old_enum_value",
