@@ -82,19 +82,13 @@ class Stories(Stream):
         all_projects_gid = []
         for workspace in workspaces:
             projects = self.call_api("projects",
-                                     workspace=workspace["gid"])  # only getting updates for non archived projects *****ADD BACK IN
+                                     workspace=workspace["gid"],
+                                     archived=False)  # only getting updates for non archived projects
             for project in projects:
-                if int(project['gid']) < 1100634302647302:  # remove
-                    continue
                 all_projects_gid.append(project["gid"])
-
-        LOGGER.info("Num projects to finish backfill:")  # remove
-        LOGGER.info(len(all_projects_gid))  # remove
 
         # For every Project ID, get all tasks and subtasks, yield their stories
         for p_gid in all_projects_gid:
-
-            LOGGER.info(p_gid)
             tasks = self.call_api("tasks", project=p_gid, opt_fields=t_opt_fields)
 
             task_dict = {}
@@ -126,7 +120,7 @@ class Stories(Stream):
                     try:
                         subtask = Context.asana.client.tasks.find_by_id(task_id)
                         if subtask["gid"] not in self.task_history.keys():
-                            self.task_history[task["gid"]] = True
+                            self.task_history[subtask["gid"]] = True
                             if self.is_bookmark_old(subtask["modified_at"]):
                                 for story in Context.asana.client.stories.get_stories_for_task(task_gid=subtask["gid"],
                                                                                                opt_fields=opt_fields):
@@ -146,7 +140,6 @@ class Stories(Stream):
         t_opt_fields = ",".join(self.task_fields)
         self.timer_check()
         for gid in task_dict.keys():
-            # check if the task has subtasks
             if int(task_dict[gid]) == 0:
                 continue
             temp_subtasks = {}

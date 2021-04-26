@@ -76,31 +76,36 @@ class Tasks(Stream):
 
         # For every Project ID, get all tasks and subtasks
         for p_gid in all_projects_gid:
-            tasks = self.call_api("tasks", project=p_gid, opt_fields=opt_fields,
-                                  modified_since=modified_since)
+            tasks = self.call_api("tasks", project=p_gid, opt_fields=opt_fields)
 
-            task_list = []
+            task_dict = []
             for task in tasks:
-                self.timer_check() # check if need to refresh token
-                task_list.append(task["gid"])
+                self.timer_check()  # check if need to refresh token
+
+                if task["gid"] in self.task_history.keys():  # if task has been check already
+                    continue
+                self.task_history[task["gid"]] = True
+                task_dict[task["gid"]] = task["num_subtasks"]
+
                 session_bookmark = self.get_updated_session_bookmark(session_bookmark, task[self.replication_key])
-                if self.is_bookmark_old(task[self.replication_key]) and task["gid"] not in self.task_history.keys():
-                    self.task_history[task["gid"]] = True
+                if self.is_bookmark_old(task[self.replication_key]):
                     yield task
 
             all_subtasks_ids = []
-            if len(task_list) > 0:
-                self.get_all_tasks(task_list, all_subtasks_ids)
+            # If a project has tasks, look for subtasks
+            if len(task_dict) > 0:
+                self.get_all_tasks(task_dict, all_subtasks_ids)
             if len(all_subtasks_ids) > 0:
-                self.timer_check()
                 for task_id in all_subtasks_ids:
+                    self.timer_check()
                     try:
                         subtask = Context.asana.client.tasks.find_by_id(task_id)
-                        session_bookmark = self.get_updated_session_bookmark(session_bookmark,
-                                                                             subtask[self.replication_key])
-                        if self.is_bookmark_old(subtask[self.replication_key]) and subtask["gid"] not in self.task_history.keys():
+                        if subtask["gid"] not in self.task_history.keys():
                             self.task_history[subtask["gid"]] = True
-                            yield subtask
+                            session_bookmark = self.get_updated_session_bookmark(session_bookmark, subtask[self.replication_key])
+                            if self.is_bookmark_old(subtask[self.replication_key]):
+                                self.task_history[subtask["gid"]] = True
+                                yield subtask
                     except Exception as e:
                         LOGGER.info("Skipping a subtask, exception occurred")
                         LOGGER.info(e)
@@ -108,16 +113,20 @@ class Tasks(Stream):
 
         self.update_bookmark(session_bookmark)
 
-    def get_all_tasks(self, task_list, all_subtasks_ids):
+    def get_all_tasks(self, task_dict, all_subtasks_ids):
+        opt_fields = ",".join(self.fields)
         self.timer_check()
-        for id in task_list:
-            temp_subtasks = []
-            subtasks = Context.asana.client.tasks.subtasks(id)
+        for gid in task_dict:
+            if int(task_dict[gid]) == 0:
+                continue
+            temp_subtasks = {}
+            subtasks = Context.asana.client.tasks.subtasks(gid, opt_fields=opt_fields)
             for subtask in subtasks:
                 all_subtasks_ids.append(subtask["gid"])  # add subtask id to the full id list
-                temp_subtasks.append(subtask["gid"])  # add subtask id to a list for this specific task
+                temp_subtasks[subtask["gid"]] = subtask["num_subtasks"]  # add subtask id to a list for this specific task
 
-            if len(temp_subtasks) > 0:  # If there are any subtasks for this given task, call the function recursively and check for nested subtasks
+            # If there are any subtasks for this given task, call the function recursively and check for nested subtasks
+            if len(temp_subtasks) > 0:
                 self.get_all_tasks(temp_subtasks, all_subtasks_ids)
 
     def timer_check(self):
