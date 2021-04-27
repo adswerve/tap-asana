@@ -110,6 +110,7 @@ def shuffle_streams(stream_name):
 
 
 def sync():
+    LOGGER.info(time.time())
     # Emit all schemas first so we have them for child streams
     for stream in Context.catalog["streams"]:
         if Context.is_selected(stream["tap_stream_id"]):
@@ -156,6 +157,8 @@ def sync():
     for stream_id, stream_count in Context.counts.items():
         LOGGER.info('%s: %d', stream_id, stream_count)
     LOGGER.info('----------------------')
+
+    LOGGER.info(time.time())
 
 
 @utils.handle_top_exception(LOGGER)
