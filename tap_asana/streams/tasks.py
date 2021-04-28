@@ -78,7 +78,7 @@ class Tasks(Stream):
         for p_gid in all_projects_gid:
             tasks = self.call_api("tasks", project=p_gid, opt_fields=opt_fields)
 
-            task_dict = []
+            task_dict = {}
             for task in tasks:
                 self.timer_check()  # check if need to refresh token
 
