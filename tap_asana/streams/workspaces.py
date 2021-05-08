@@ -19,7 +19,7 @@ class Workspaces(Stream):
     LOGGER = singer.get_logger()
     LOGGER.info("ATTENTION: Starting Workspaces Sync")
 
-    # Refreshing token at the start of Teams
+    # Refreshing token at the start of Workspaces
     Context.asana.refresh_access_token()
 
     opt_fields = ",".join(self.fields)

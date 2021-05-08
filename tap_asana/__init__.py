@@ -83,7 +83,7 @@ def discover():
             'stream': schema_name,
             'tap_stream_id': schema_name,
             'schema': singer.resolve_schema_references(schema, refs),
-            'metadata' : get_discovery_metadata(stream, schema),
+            'metadata': get_discovery_metadata(stream, schema),
             'key_properties': stream.key_properties,
             'replication_key': stream.replication_key,
             'replication_method': stream.replication_method
@@ -110,7 +110,6 @@ def shuffle_streams(stream_name):
 
 
 def sync():
-    LOGGER.info(time.time())
     # Emit all schemas first so we have them for child streams
     for stream in Context.catalog["streams"]:
         if Context.is_selected(stream["tap_stream_id"]):
@@ -157,8 +156,6 @@ def sync():
     for stream_id, stream_count in Context.counts.items():
         LOGGER.info('%s: %d', stream_id, stream_count)
     LOGGER.info('----------------------')
-
-    LOGGER.info(time.time())
 
 
 @utils.handle_top_exception(LOGGER)
